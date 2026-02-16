@@ -27,6 +27,7 @@ class ImageAgentState(TypedDict, total=False):
     original_prompt: str
     source_image_path: str | None
     last_image_path: str | None
+    last_prompt: str | None  # description of what the last image contained
 
     # Router output
     action: Literal["generate", "edit", "enhance_only"]

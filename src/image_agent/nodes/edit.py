@@ -11,10 +11,13 @@ from image_agent.state import ImageAgentState
 
 def edit_node(state: ImageAgentState) -> dict:
     """Edit an existing image using OpenAI's image edit API."""
-    # For edits, always use original_prompt (the user's edit instruction).
-    # The edit path skips research/enhance, so enhanced_prompt would be
-    # stale from a previous turn's checkpoint.
+    # For edits, use original_prompt (the user's edit instruction).
+    # Enrich with context about what the previous image contained so
+    # pronouns like "he", "it" resolve correctly.
     prompt = state["original_prompt"]
+    last_prompt = state.get("last_prompt")
+    if last_prompt:
+        prompt = f"Original image: {last_prompt}\nEdit instruction: {prompt}"
     source_path = state.get("source_image_path")
 
     if not source_path:

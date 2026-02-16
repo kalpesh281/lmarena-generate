@@ -15,9 +15,9 @@ def response_node(state: ImageAgentState) -> dict:
 
     image_path = state.get("image_path", "unknown")
     action = state.get("action", "generate")
-    provider = state.get("generation_metadata", {}).get("provider", "unknown")
-    enhanced = state.get("enhanced_prompt", "")
-    research = state.get("research_context", {})
+    provider = (state.get("generation_metadata") or {}).get("provider", "unknown")
+    enhanced = state.get("enhanced_prompt") or ""
+    research = state.get("research_context") or {}
     synthesis = research.get("synthesized", "")
 
     parts = [f"Image saved to: {image_path}"]

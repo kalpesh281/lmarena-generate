@@ -164,6 +164,7 @@ def chat():
     config = {"configurable": {"thread_id": thread_id}}
     image_count = 0
     last_image_path = None
+    last_prompt = None
 
     while True:
         try:
@@ -191,6 +192,7 @@ def chat():
         initial_state = {
             "original_prompt": user_input,
             "last_image_path": last_image_path,
+            "last_prompt": last_prompt,
             # Reset stale fields from previous turn's checkpoint
             "enhanced_prompt": None,
             "research_context": None,
@@ -209,6 +211,8 @@ def chat():
             image_count += 1
             if result.get("image_path"):
                 last_image_path = result["image_path"]
+            # Track what was generated for conversational context
+            last_prompt = result.get("enhanced_prompt") or user_input
             _print_result(result)
             console.print(f"\n[bright_cyan]Agent:[/bright_cyan] There you go! Your image is ready.")
             console.print("[bright_cyan]Agent:[/bright_cyan] Want me to create something else? Just describe it!\n")
@@ -217,8 +221,8 @@ def chat():
 def _print_result(result: dict) -> None:
     """Pretty-print a generation result."""
     image_path = result.get("image_path", "?")
-    provider = result.get("generation_metadata", {}).get("provider", "?")
-    enhanced = result.get("enhanced_prompt", "")
+    provider = (result.get("generation_metadata") or {}).get("provider", "?")
+    enhanced = result.get("enhanced_prompt") or ""
 
     console.print(f"\n[bold green]Image saved:[/bold green] {image_path}")
     console.print(f"[bold]Provider:[/bold] {provider}")
@@ -227,7 +231,7 @@ def _print_result(result: dict) -> None:
         console.print(f"\n[bold]Enhanced prompt:[/bold]")
         console.print(Panel(enhanced, border_style="green"))
 
-    research = result.get("research_context", {})
+    research = result.get("research_context") or {}
     if research.get("synthesized"):
         preview = research["synthesized"][:400]
         if len(research["synthesized"]) > 400:
