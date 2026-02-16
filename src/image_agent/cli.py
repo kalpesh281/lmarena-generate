@@ -163,6 +163,7 @@ def chat():
     thread_id = str(uuid.uuid4())
     config = {"configurable": {"thread_id": thread_id}}
     image_count = 0
+    last_image_path = None
 
     while True:
         try:
@@ -187,14 +188,27 @@ def chat():
         console.print(f"\n[bright_cyan]Agent:[/bright_cyan] Great idea! Let me work on that for you...")
         console.print("[dim]   Researching style references, enhancing your prompt, and generating...[/dim]\n")
 
+        initial_state = {
+            "original_prompt": user_input,
+            "last_image_path": last_image_path,
+            # Reset stale fields from previous turn's checkpoint
+            "enhanced_prompt": None,
+            "research_context": None,
+            "source_image_path": None,
+            "error": None,
+            "image_path": None,
+            "generation_metadata": None,
+        }
         with console.status("[bold green]Creating your image..."):
-            result = graph.invoke({"original_prompt": user_input}, config)
+            result = graph.invoke(initial_state, config)
 
         if result.get("error"):
             console.print(f"[bright_cyan]Agent:[/bright_cyan] [red]Oops, something went wrong: {result['error']}[/red]")
             console.print("[bright_cyan]Agent:[/bright_cyan] Want to try a different prompt?\n")
         else:
             image_count += 1
+            if result.get("image_path"):
+                last_image_path = result["image_path"]
             _print_result(result)
             console.print(f"\n[bright_cyan]Agent:[/bright_cyan] There you go! Your image is ready.")
             console.print("[bright_cyan]Agent:[/bright_cyan] Want me to create something else? Just describe it!\n")

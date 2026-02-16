@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from openai import BadRequestError
+
 from image_agent.providers.openai_image import generate_openai_image
 from image_agent.providers.flux_image import generate_flux_image
 from image_agent.providers.image_utils import image_to_base64
@@ -13,12 +15,15 @@ def openai_generate_node(state: ImageAgentState) -> dict:
     prompt = state.get("enhanced_prompt") or state["original_prompt"]
     params = state.get("generation_params", {})
 
-    image_bytes = generate_openai_image(
-        prompt,
-        size=params.get("size", "1024x1024"),
-        quality=params.get("quality", "high"),
-        n=params.get("n", 1),
-    )
+    try:
+        image_bytes = generate_openai_image(
+            prompt,
+            size=params.get("size", "1024x1024"),
+            quality=params.get("quality", "high"),
+            n=params.get("n", 1),
+        )
+    except BadRequestError as exc:
+        return {"error": f"OpenAI rejected the request: {exc.message}"}
 
     return {
         "generation_metadata": {
@@ -40,11 +45,14 @@ def flux_generate_node(state: ImageAgentState) -> dict:
     size = params.get("size", "1024x1024")
     width, height = (int(d) for d in size.split("x"))
 
-    image_bytes = generate_flux_image(
-        prompt,
-        width=width,
-        height=height,
-    )
+    try:
+        image_bytes = generate_flux_image(
+            prompt,
+            width=width,
+            height=height,
+        )
+    except Exception as exc:
+        return {"error": f"Flux generation failed: {exc}"}
 
     return {
         "generation_metadata": {

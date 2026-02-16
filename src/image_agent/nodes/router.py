@@ -22,8 +22,19 @@ def router_node(state: ImageAgentState) -> dict:
     )
 
     prompt = state["original_prompt"]
+    last_image = state.get("last_image_path")
+
+    system_prompt = ROUTER_SYSTEM_PROMPT
+    if last_image:
+        system_prompt += (
+            "\n\nIMPORTANT: A previous image exists from the conversation. "
+            "If the user's request is asking to modify, adjust, or tweak that image "
+            '(e.g. "make it darker", "add clouds", "change the colors"), use action "edit". '
+            "If the user is requesting an entirely new image subject, use action \"generate\"."
+        )
+
     response = llm.invoke([
-        SystemMessage(content=ROUTER_SYSTEM_PROMPT),
+        SystemMessage(content=system_prompt),
         HumanMessage(content=prompt),
     ])
 
@@ -39,7 +50,13 @@ def router_node(state: ImageAgentState) -> dict:
         }
 
     action = analysis.pop("action", "generate")
-    return {
+
+    result: dict = {
         "action": action,
         "prompt_analysis": analysis,
     }
+
+    if action == "edit" and last_image and not state.get("source_image_path"):
+        result["source_image_path"] = last_image
+
+    return result
