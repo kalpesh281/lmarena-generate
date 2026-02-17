@@ -4,52 +4,35 @@ from __future__ import annotations
 
 from image_agent.state import ImageAgentState
 
-# Styles routed to Flux (photorealistic strengths)
-FLUX_STYLES = {
-    "photorealistic",
-    "photography",
-    "photo",
-    "realistic",
-    "cinematic",
-    "portrait",
-    "landscape",
-    "architectural",
-    "product",
-    "fashion",
-    "documentary",
-    "street",
-}
+# Styles routed to Flux only when explicitly requested via --provider flux
+FLUX_STYLES: set[str] = set()
 
-# Everything else goes to OpenAI (artistic strengths)
-# Explicitly listed for clarity, but the default is OpenAI
-OPENAI_STYLES = {
-    "anime",
-    "cartoon",
-    "illustration",
-    "digital-art",
-    "oil-painting",
-    "watercolor",
-    "pencil-sketch",
-    "3d-render",
-    "pixel-art",
-    "comic",
-    "fantasy",
-    "abstract",
-    "surreal",
-    "pop-art",
-    "concept-art",
-}
+# OpenAI only used when explicitly requested via --provider openai (or for edits)
+OPENAI_STYLES: set[str] = set()
 
 
 def provider_select_node(state: ImageAgentState) -> dict:
-    """Select the image generation provider based on detected style."""
+    """Select the image generation provider based on detected style.
+
+    Priority: explicit override > style mapping > gemini (default).
+    """
+    # Honour explicit provider override (e.g. --provider openai)
+    explicit = state.get("provider")
+    if explicit:
+        return {
+            "provider": explicit,
+            "generation_params": {"size": "1024x1024", "quality": "high", "n": 1},
+        }
+
     analysis = state.get("prompt_analysis", {})
     style = analysis.get("style", "").lower().strip()
 
     if style in FLUX_STYLES:
         provider = "flux"
-    else:
+    elif style in OPENAI_STYLES:
         provider = "openai"
+    else:
+        provider = "gemini"
 
     # Default generation params
     generation_params = {

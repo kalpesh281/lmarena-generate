@@ -9,11 +9,19 @@ from image_agent.state import ImageAgentState
 from image_agent.nodes.router import router_node
 from image_agent.nodes.research import research_node
 from image_agent.nodes.enhance import enhance_node
+from image_agent.nodes.suggest import suggest_node
 from image_agent.nodes.provider import provider_select_node
-from image_agent.nodes.generate import openai_generate_node, flux_generate_node
+from image_agent.nodes.generate import openai_generate_node, flux_generate_node, gemini_generate_node
 from image_agent.nodes.edit import edit_node
 from image_agent.nodes.save import save_node
 from image_agent.nodes.response import response_node
+
+
+def _route_from_start(state: ImageAgentState) -> str:
+    """Route at graph entry: Phase 2 skips straight to enhance."""
+    if state.get("suggestion_phase_complete") and state.get("research_context"):
+        return "enhance"
+    return "router"
 
 
 def _route_after_router(state: ImageAgentState) -> str:
@@ -26,6 +34,13 @@ def _route_after_router(state: ImageAgentState) -> str:
     return "research"
 
 
+def _route_after_research(state: ImageAgentState) -> str:
+    """After research, decide whether to suggest or skip to enhance."""
+    if state.get("skip_suggestions") or state.get("action") == "enhance_only":
+        return "enhance"
+    return "suggest"
+
+
 def _route_after_enhance(state: ImageAgentState) -> str:
     """After enhancement, decide whether to generate or just return."""
     if state.get("action") == "enhance_only":
@@ -35,10 +50,12 @@ def _route_after_enhance(state: ImageAgentState) -> str:
 
 def _route_provider(state: ImageAgentState) -> str:
     """Route to the correct image provider node."""
-    provider = state.get("provider", "openai")
+    provider = state.get("provider", "gemini")
     if provider == "flux":
         return "flux_generate"
-    return "openai_generate"
+    if provider == "openai":
+        return "openai_generate"
+    return "gemini_generate"
 
 
 def build_graph() -> StateGraph:
@@ -48,16 +65,21 @@ def build_graph() -> StateGraph:
     # Add all nodes
     graph.add_node("router", router_node)
     graph.add_node("research", research_node)
+    graph.add_node("suggest", suggest_node)
     graph.add_node("enhance", enhance_node)
     graph.add_node("provider_select", provider_select_node)
     graph.add_node("openai_generate", openai_generate_node)
     graph.add_node("flux_generate", flux_generate_node)
+    graph.add_node("gemini_generate", gemini_generate_node)
     graph.add_node("edit", edit_node)
     graph.add_node("save", save_node)
     graph.add_node("response", response_node)
 
-    # Edges: START → router
-    graph.add_edge(START, "router")
+    # START → conditional: Phase 2 re-entry or Phase 1
+    graph.add_conditional_edges(START, _route_from_start, {
+        "enhance": "enhance",
+        "router": "router",
+    })
 
     # Router → conditional branch
     graph.add_conditional_edges("router", _route_after_router, {
@@ -65,8 +87,14 @@ def build_graph() -> StateGraph:
         "edit": "edit",
     })
 
-    # Research → enhance
-    graph.add_edge("research", "enhance")
+    # Research → conditional: suggest or skip to enhance
+    graph.add_conditional_edges("research", _route_after_research, {
+        "suggest": "suggest",
+        "enhance": "enhance",
+    })
+
+    # Suggest → END (Phase 1 terminates so CLI can show suggestions)
+    graph.add_edge("suggest", END)
 
     # Enhance → conditional (generate or response-only)
     graph.add_conditional_edges("enhance", _route_after_enhance, {
@@ -78,11 +106,13 @@ def build_graph() -> StateGraph:
     graph.add_conditional_edges("provider_select", _route_provider, {
         "openai_generate": "openai_generate",
         "flux_generate": "flux_generate",
+        "gemini_generate": "gemini_generate",
     })
 
     # Both generators → save → response → END
     graph.add_edge("openai_generate", "save")
     graph.add_edge("flux_generate", "save")
+    graph.add_edge("gemini_generate", "save")
     graph.add_edge("edit", "save")
     graph.add_edge("save", "response")
     graph.add_edge("response", END)

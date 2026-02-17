@@ -14,7 +14,7 @@ from image_agent.state import ImageAgentState
 def save_node(state: ImageAgentState) -> dict:
     """Save the generated image and a JSON metadata sidecar."""
     settings = get_settings()
-    metadata = state.get("generation_metadata", {})
+    metadata = state.get("generation_metadata") or {}
 
     image_b64 = metadata.get("image_b64")
     if not image_b64:

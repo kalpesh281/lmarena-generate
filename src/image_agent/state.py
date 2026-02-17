@@ -40,8 +40,14 @@ class ImageAgentState(TypedDict, total=False):
     enhanced_prompt: str | None
 
     # Provider selection
-    provider: Literal["openai", "flux"]
+    provider: Literal["openai", "flux", "gemini"]
     generation_params: GenerationParams
+
+    # Creative suggestions (chat mode)
+    suggestions: list[dict] | None  # 3 suggestion dicts from suggest node
+    selected_suggestion: str | None  # User's choice (formatted text) or None
+    skip_suggestions: bool  # True for one-shot commands
+    suggestion_phase_complete: bool  # True after Phase 1 (set by CLI before Phase 2)
 
     # Output
     image_path: str | None

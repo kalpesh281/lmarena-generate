@@ -21,11 +21,21 @@ def enhance_node(state: ImageAgentState) -> dict:
 
     research = state.get("research_context", {})
     prompt = state["original_prompt"]
+    selected_suggestion = state.get("selected_suggestion")
+
+    suggestion_block = ""
+    if selected_suggestion:
+        suggestion_block = f"""
+Selected creative direction:
+{selected_suggestion}
+
+Follow this creative direction closely — match its style, mood, and key elements."""
 
     user_msg = f"""Original prompt: {prompt}
 
 Research context:
 {research.get('synthesized', 'No research available')}
+{suggestion_block}
 
 Enhance this into a detailed image prompt using the research context above."""
 

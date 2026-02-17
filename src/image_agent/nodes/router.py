@@ -31,10 +31,13 @@ def router_node(state: ImageAgentState) -> dict:
         system_prompt += (
             f"\n\nIMPORTANT: A previous image exists from the conversation. "
             f'The previous image was: "{last_prompt}"\n'
-            "If the user's request refers to the previous image using pronouns "
-            '(e.g. "he", "she", "it", "make it darker", "add clouds", "change the colors") '
-            "or asks to modify/adjust/tweak it, use action \"edit\".\n"
-            "If the user is requesting an entirely new, unrelated image subject, use action \"generate\"."
+            "Use action \"edit\" ONLY when the user explicitly wants to modify the EXISTING image "
+            '(e.g. "make it darker", "add clouds", "change the colors", "remove the person"). '
+            "These are small tweaks to the same image.\n"
+            "Use action \"generate\" for everything else — including when the user describes a "
+            "new scene, asks for a different subject, or wants a fresh image even if they reference "
+            "something from before (e.g. \"now make a cat\", \"generate a chess match\", "
+            "\"I want robots farming\"). When in doubt, prefer \"generate\"."
         )
 
     response = llm.invoke([

@@ -19,14 +19,18 @@ class Settings(BaseSettings):
     openai_api_key: str = ""
     huggingface_api_key: str = ""
     tavily_api_key: str = ""
+    gemini_api_key: str = ""
 
     # Model settings
-    router_model: str = "gpt-4o-mini"
-    enhance_model: str = "gpt-4o"
+    router_model: str = "gpt-5-mini"
+    enhance_model: str = "gpt-5-mini"
     image_model: str = "gpt-image-1"
 
     # Flux settings (Hugging Face model ID)
     flux_model: str = "black-forest-labs/FLUX.1-schnell"
+
+    # Gemini settings
+    gemini_image_model: str = "gemini-2.5-flash-image"
 
     # Output
     output_dir: Path = Path("output")

@@ -24,7 +24,7 @@ console = Console()
 @app.command()
 def generate(
     prompt: str = typer.Argument(..., help="Image generation prompt"),
-    provider: Optional[str] = typer.Option(None, help="Force provider: openai or flux"),
+    provider: Optional[str] = typer.Option(None, help="Force provider: gemini, openai, or flux"),
     size: str = typer.Option("1024x1024", help="Image size"),
 ):
     """Generate an image from a text prompt with internet research."""
@@ -32,7 +32,9 @@ def generate(
     console.print("[dim]Routing → Researching → Enhancing → Generating...[/dim]\n")
 
     graph = compile_graph()
-    initial_state = {"original_prompt": prompt}
+    initial_state = {"original_prompt": prompt, "skip_suggestions": True}
+    if provider:
+        initial_state["provider"] = provider
     config = {"configurable": {"thread_id": str(uuid.uuid4())}}
 
     with console.status("[bold green]Working..."):
@@ -165,6 +167,8 @@ def chat():
     image_count = 0
     last_image_path = None
     last_prompt = None
+    last_suggestions = None  # Remember suggestions from previous turn
+    last_phase1_result = None  # Remember Phase 1 result for re-picking
 
     while True:
         try:
@@ -186,23 +190,124 @@ def chat():
             console.print(f"[yellow]Done! Cleared {count} files from history.[/yellow]\n")
             continue
 
-        console.print(f"\n[bright_cyan]Agent:[/bright_cyan] Great idea! Let me work on that for you...")
-        console.print("[dim]   Researching style references, enhancing your prompt, and generating...[/dim]\n")
+        # --- Check if user is picking a previous suggestion ---
+        prev_pick = _match_previous_option(user_input, last_suggestions)
+        if prev_pick is not None and last_phase1_result is not None:
+            console.print(f"\n[bright_cyan]Agent:[/bright_cyan] Going with [bold]Option {prev_pick + 1}[/bold] from before!")
+            console.print("[dim]   Enhancing prompt and generating your image...[/dim]\n")
 
+            selected_suggestion = _format_suggestion(last_suggestions[prev_pick])
+            phase2_state = {
+                "original_prompt": last_phase1_result.get("original_prompt", user_input),
+                "last_image_path": last_image_path,
+                "last_prompt": last_prompt,
+                "suggestion_phase_complete": True,
+                "selected_suggestion": selected_suggestion,
+                "research_context": last_phase1_result.get("research_context"),
+                "prompt_analysis": last_phase1_result.get("prompt_analysis"),
+                "action": last_phase1_result.get("action"),
+                "enhanced_prompt": None,
+                "error": None,
+                "image_path": None,
+                "generation_metadata": None,
+            }
+            phase2_config = {"configurable": {"thread_id": str(uuid.uuid4())}}
+
+            with console.status("[bold green]Creating your image..."):
+                result = graph.invoke(phase2_state, phase2_config)
+
+            if result.get("error"):
+                console.print(f"[bright_cyan]Agent:[/bright_cyan] [red]Oops, something went wrong: {result['error']}[/red]\n")
+            else:
+                image_count += 1
+                if result.get("image_path"):
+                    last_image_path = result["image_path"]
+                last_prompt = result.get("enhanced_prompt") or user_input
+                _print_result(result)
+                console.print(f"\n[bright_cyan]Agent:[/bright_cyan] There you go! Your image is ready.")
+                console.print("[bright_cyan]Agent:[/bright_cyan] Want me to create something else? Just describe it!\n")
+            continue
+
+        console.print(f"\n[bright_cyan]Agent:[/bright_cyan] Great idea! Let me work on that for you...")
+        console.print("[dim]   Researching style references and preparing creative directions...[/dim]\n")
+
+        # --- Phase 1: Route → Research → Suggest (or Edit path) ---
         initial_state = {
             "original_prompt": user_input,
             "last_image_path": last_image_path,
             "last_prompt": last_prompt,
-            # Reset stale fields from previous turn's checkpoint
+            # Reset stale fields from previous turn
             "enhanced_prompt": None,
             "research_context": None,
             "source_image_path": None,
             "error": None,
             "image_path": None,
             "generation_metadata": None,
+            "suggestions": None,
+            "selected_suggestion": None,
+            "skip_suggestions": False,
+            "suggestion_phase_complete": False,
         }
-        with console.status("[bold green]Creating your image..."):
+        with console.status("[bold green]Researching and analyzing..."):
             result = graph.invoke(initial_state, config)
+
+        if result.get("error"):
+            console.print(f"[bright_cyan]Agent:[/bright_cyan] [red]Oops, something went wrong: {result['error']}[/red]")
+            console.print("[bright_cyan]Agent:[/bright_cyan] Want to try a different prompt?\n")
+            continue
+
+        # If this was an edit action (or enhance_only), the full pipeline already ran
+        # (edit→save→response→END), so we have a final image — skip Phase 2.
+        if result.get("image_path"):
+            image_count += 1
+            last_image_path = result["image_path"]
+            last_prompt = result.get("enhanced_prompt") or user_input
+            _print_result(result)
+            console.print(f"\n[bright_cyan]Agent:[/bright_cyan] There you go! Your image is ready.")
+            console.print("[bright_cyan]Agent:[/bright_cyan] Want me to create something else? Just describe it!\n")
+            continue
+
+        # We have suggestions — display them and get user choice
+        suggestions = result.get("suggestions") or []
+        last_suggestions = suggestions if len(suggestions) > 1 else None
+        last_phase1_result = result
+        if not suggestions:
+            # No suggestions returned (shouldn't happen), proceed without
+            selected_suggestion = None
+        elif len(suggestions) == 1:
+            # Fallback single suggestion — auto-select it
+            selected_suggestion = _format_suggestion(suggestions[0])
+            console.print("[dim]   Using default creative direction...[/dim]\n")
+        else:
+            _display_suggestions(suggestions)
+            selected_suggestion = _get_user_selection(suggestions)
+
+        # --- Phase 2: Enhance → Provider → Generate → Save → Response ---
+        console.print()
+        console.print("[dim]   Enhancing prompt and generating your image...[/dim]\n")
+
+        phase2_state = {
+            "original_prompt": user_input,
+            "last_image_path": last_image_path,
+            "last_prompt": last_prompt,
+            "suggestion_phase_complete": True,
+            "selected_suggestion": selected_suggestion,
+            # Carry over from Phase 1
+            "research_context": result.get("research_context"),
+            "prompt_analysis": result.get("prompt_analysis"),
+            "action": result.get("action"),
+            # Reset output fields
+            "enhanced_prompt": None,
+            "error": None,
+            "image_path": None,
+            "generation_metadata": None,
+        }
+
+        # Use a fresh thread for Phase 2 so we don't collide with Phase 1 checkpoint
+        phase2_config = {"configurable": {"thread_id": str(uuid.uuid4())}}
+
+        with console.status("[bold green]Creating your image..."):
+            result = graph.invoke(phase2_state, phase2_config)
 
         if result.get("error"):
             console.print(f"[bright_cyan]Agent:[/bright_cyan] [red]Oops, something went wrong: {result['error']}[/red]")
@@ -211,11 +316,101 @@ def chat():
             image_count += 1
             if result.get("image_path"):
                 last_image_path = result["image_path"]
-            # Track what was generated for conversational context
             last_prompt = result.get("enhanced_prompt") or user_input
             _print_result(result)
             console.print(f"\n[bright_cyan]Agent:[/bright_cyan] There you go! Your image is ready.")
             console.print("[bright_cyan]Agent:[/bright_cyan] Want me to create something else? Just describe it!\n")
+
+
+import re
+
+# Patterns that match references to previous options (e.g. "1st one", "option 1", "first one", "the first")
+_OPTION_PATTERNS = [
+    (re.compile(r"^(?:the\s+)?(?:1st|first)\s*(?:one|option)?$", re.I), 0),
+    (re.compile(r"^(?:the\s+)?(?:2nd|second)\s*(?:one|option)?$", re.I), 1),
+    (re.compile(r"^(?:the\s+)?(?:3rd|third)\s*(?:one|option)?$", re.I), 2),
+    (re.compile(r"^option\s*([123])$", re.I), None),  # dynamic index
+]
+
+
+def _match_previous_option(text: str, suggestions: list[dict] | None) -> int | None:
+    """Return a 0-based suggestion index if the text references a previous option, else None."""
+    if not suggestions:
+        return None
+    text = text.strip()
+    for pattern, idx in _OPTION_PATTERNS:
+        m = pattern.match(text)
+        if m:
+            if idx is not None:
+                return idx if idx < len(suggestions) else None
+            # Dynamic group capture
+            return int(m.group(1)) - 1
+    return None
+
+
+def _format_suggestion(suggestion: dict) -> str:
+    """Convert a suggestion dict into a text block for the enhance node."""
+    parts = [
+        f"Title: {suggestion.get('title', 'Untitled')}",
+        f"Description: {suggestion.get('description', '')}",
+        f"Style: {suggestion.get('style', '')}",
+        f"Mood: {suggestion.get('mood', '')}",
+    ]
+    elements = suggestion.get("key_elements", [])
+    if elements:
+        parts.append(f"Key elements: {', '.join(elements)}")
+    return "\n".join(parts)
+
+
+def _display_suggestions(suggestions: list[dict]) -> None:
+    """Render suggestion panels with Rich."""
+    console.print("[bold bright_cyan]Agent:[/bold bright_cyan] Here are 3 creative directions for your image:\n")
+    colors = ["green", "yellow", "magenta"]
+    for i, s in enumerate(suggestions):
+        elements = s.get("key_elements", [])
+        elements_str = ", ".join(elements) if elements else "—"
+        body = (
+            f"[bold]{s.get('description', '')}[/bold]\n\n"
+            f"[dim]Style:[/dim]  {s.get('style', '—')}   "
+            f"[dim]Mood:[/dim]  {s.get('mood', '—')}\n"
+            f"[dim]Key elements:[/dim]  {elements_str}"
+        )
+        color = colors[i % len(colors)]
+        console.print(Panel(
+            body,
+            title=f"[bold {color}]Option {i + 1}: {s.get('title', '')}[/bold {color}]",
+            border_style=color,
+            padding=(1, 2),
+        ))
+
+    console.print(
+        "[dim]Enter [bold]1[/bold], [bold]2[/bold], or [bold]3[/bold] to pick a direction  |  "
+        "Type [bold]skip[/bold] to generate without a direction  |  "
+        "Or type your own creative feedback[/dim]\n"
+    )
+
+
+def _get_user_selection(suggestions: list[dict]) -> str | None:
+    """Prompt the user to select a suggestion and return formatted text or None."""
+    try:
+        choice = console.input("[bold bright_cyan]Your choice:[/bold bright_cyan] ").strip()
+    except (KeyboardInterrupt, EOFError):
+        console.print("\n[dim]Skipping suggestions...[/dim]")
+        return None
+
+    if not choice or choice.lower() == "skip":
+        return None
+
+    # Check for numeric selection
+    if choice in ("1", "2", "3"):
+        idx = int(choice) - 1
+        if idx < len(suggestions):
+            console.print(f"[bright_cyan]Agent:[/bright_cyan] Great pick! Going with [bold]Option {choice}[/bold].")
+            return _format_suggestion(suggestions[idx])
+
+    # Treat as custom creative direction
+    console.print(f"[bright_cyan]Agent:[/bright_cyan] Got it! I'll use your custom direction.")
+    return f"Custom creative direction: {choice}"
 
 
 def _print_result(result: dict) -> None:
