@@ -23,6 +23,8 @@ def enhance_node(state: ImageAgentState) -> dict:
     research = state.get("research_context", {})
     prompt = state["original_prompt"]
     selected_suggestion = state.get("selected_suggestion")
+    analysis = state.get("prompt_analysis", {})
+    realism_mode = analysis.get("realism_mode", "realistic")
 
     suggestion_block = ""
     if selected_suggestion:
@@ -46,6 +48,8 @@ Text research provides context, but visual analysis should take priority for app
 clothing, colors, and iconographic details."""
 
     user_msg = f"""\
+Realism mode: {realism_mode}
+
 === WHAT TO SHOW (Compositional Blueprint — preserve ALL elements) ===
 Original prompt: {prompt}
 First, mentally list every key noun from the original prompt. Every one MUST appear as a \

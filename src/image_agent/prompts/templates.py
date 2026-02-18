@@ -10,13 +10,25 @@ Return a JSON object with exactly these fields:
   "mood": "<detected mood, e.g. serene, dramatic, whimsical, dark, vibrant, nostalgic>",
   "subject": "<primary subject of the image>",
   "subject_type": "real_person" | "fictional_character" | "scene" | "object" | "abstract" | "educational" | "cultural" | "landmark",
-  "complexity": "simple" | "moderate" | "complex"
+  "complexity": "simple" | "moderate" | "complex",
+  "realism_mode": "realistic" | "fantasy" | "stylized"
 }
 
 Supported styles:
 - General: photorealistic, anime, oil-painting, digital-art, watercolor, cartoon, 3d-render, pencil-sketch
 - Educational/Infographic: infographic, diagram, flowchart, mindmap, tree-diagram, timeline
 - Cultural/Mythological: mythological-art, traditional-painting, temple-art, folk-art, devotional, festival-scene
+
+Realism mode detection:
+- "realistic" (DEFAULT) — any real-world scene, people, nature, animals, physical interactions, \
+sports, weather, or any prompt that does not explicitly request surreal/magical/impossible imagery. \
+When in doubt, default to "realistic".
+- "fantasy" — ONLY when the user explicitly requests surreal, magical, impossible, dreamlike, \
+or physics-defying imagery (e.g. "water flowing upward", "floating islands", "surreal dreamscape", \
+"magical forest where trees walk"). The user must clearly signal non-realistic intent.
+- "stylized" — when the art style is non-photorealistic (anime, cartoon, Ghibli, Pixar, comic, \
+watercolor, oil-painting) but the scene itself depicts plausible real-world interactions. \
+Basic physics still applies (gravity, fluid behavior, material properties) even in stylized art.
 
 Rules:
 - action is "edit" if the user explicitly mentions modifying/editing an existing image, OR if a previous image exists and the user asks for changes to it (e.g. "make the sky purple", "change colors to warm", "add clouds", "remove the person", "make it darker").
@@ -307,7 +319,13 @@ skyscraper canyons, desert saguaro cacti, glacier-carved valleys
   - Africa: savanna acacia silhouettes, red earth tones, tribal village patterns, \
 Victoria Falls mist rainbows, Saharan sand seas, Moroccan zellige tilework
 
-6. **Scene element inventory** — List ALL key objects, characters, and elements that MUST \
+6. **Physical interactions** — For any scene involving physical actions (throwing, splashing, \
+pouring, falling, running, colliding), describe how objects physically behave: water scatters \
+into irregular chaotic droplets when tossed (not smooth arcs or rings), fabric drapes under \
+gravity, thrown objects follow parabolic trajectories, feet make contact with the ground. \
+Accurate physics descriptions are essential because AI image models cannot infer physics on their own.
+
+7. **Scene element inventory** — List ALL key objects, characters, and elements that MUST \
 be visible in the scene and their spatial relationships. For example: "Karna (foreground, \
 straining) — chariot body (mid-ground, tilted, one wheel missing) — wheel (embedded in mud, \
 Karna gripping it) — battlefield (background, dusty, war debris)". Every key noun from the \
@@ -398,7 +416,18 @@ Rules:
 mentions a chariot and a wheel, both must appear in key_elements — not just the wheel. List \
 3-7 concrete visual elements that define the direction.
 - Keep titles to 3-6 words
-- Return ONLY valid JSON\
+- Return ONLY valid JSON
+
+Physics & realism in suggestions:
+- When "Realism mode: realistic" or "Realism mode: stylized": the "Faithful / Literal" suggestion \
+MUST depict physically plausible scenes — correct gravity, fluid scatter (not smooth arcs/rings), \
+natural material behavior, and realistic body mechanics.
+- When "Realism mode: realistic" or "Realism mode: stylized": the "Unexpected / Artistic" suggestion \
+should still respect basic physics unless the artistic twist specifically involves surrealism.
+- The "Bold / Boundary-pushing" suggestion MAY include surreal or physics-defying elements, but \
+must clearly label them as intentionally surreal in the description.
+- When "Realism mode: fantasy": all suggestions may include magical/impossible physics, but \
+non-magical scene elements should still be physically plausible.\
 """
 
 ENHANCE_SYSTEM_PROMPT = """\
@@ -514,6 +543,59 @@ organizational hierarchy, use corporate color palette
 connections, use technical blueprint aesthetic
   - History: use timeline markers with dates, show era color coding, include key figure labels, \
 use period-appropriate visual styling as accent
+
+CRITICAL — Physics, gravity, and real-world realism:
+When "Realism mode: realistic" or "Realism mode: stylized" is indicated, you MUST describe \
+how objects physically behave — AI image models have no understanding of physics and will \
+produce impossible results unless you explicitly describe correct physical interactions.
+
+**Gravity & weight:**
+- Objects fall downward. Hair, fabric, chains, and ropes drape and hang under gravity.
+- Tossed or splashed water scatters into irregular, chaotic droplets and spray — it does NOT \
+form smooth arcs, rings, orbs, or geometric shapes.
+- Falling objects follow parabolic arcs, not straight lines or hovering paths.
+- Heavy objects compress soft surfaces beneath them (footprints in sand, tire marks on mud).
+
+**Fluid dynamics:**
+- Water thrown from a bucket/hands = chaotic burst of irregular droplets, spray, and rivulets.
+- Splashing water = asymmetric fans of droplets with varying sizes, some catching light.
+- Rivers/streams flow downhill over terrain with turbulence around rocks and obstacles.
+- Rain falls in streaks, puddles accumulate in low points, wet surfaces are reflective.
+
+**Material behavior:**
+- Cloth wrinkles at joints and folds under gravity. Wet cloth clings to skin and darkens.
+- Metal reflects environment and light sources. Rusty metal has rough orange-brown patches.
+- Glass is transparent with reflections and refractive distortion.
+- Wood has grain, knots, and weathering. Stone has texture, moss in damp areas.
+
+**Body mechanics & posture:**
+- Throwing posture: weight transfer to front foot, arm extended, torso rotated.
+- Running: one foot off ground, arms pumping, hair/clothing trailing behind.
+- Jumping: bent knees on takeoff, body arched mid-air, arms reaching.
+- Standing: feet flat on surface, body weight distributed, natural slight asymmetry.
+
+**Contact & support:**
+- Objects resting on surfaces make contact — no floating gaps between object and surface.
+- Shadows fall OPPOSITE the light source and match the object's shape.
+- Feet touch the ground. Wheels touch the road. Boats sit IN the water, not ON it.
+
+Common physics failures to EXPLICITLY PREVENT in your prompt:
+- Water forming perfect rings, arcs, spheres, or smooth ribbons (describe: "chaotic irregular \
+water droplets scattering in all directions, some catching sunlight")
+- Hair or fabric defying gravity (describe: "hair falling naturally, strands catching the wind")
+- Objects floating with no support (describe: "resting on the surface, pressing into the ground")
+- Missing or incorrect shadows (describe: "casting a shadow on the ground to the left, matching \
+the warm light from the upper right")
+- People in anatomically impossible poses (describe the specific posture and weight distribution)
+
+**Fantasy mode exception:** When "Realism mode: fantasy" is indicated, magical/surreal elements \
+may defy physics (floating objects, impossible water, gravity reversal) — but non-magical parts \
+of the scene (clothing, shadows, material textures, human anatomy) should still follow physical laws. \
+Explicitly describe which elements are magical and how they defy physics.
+
+**Stylized mode:** When "Realism mode: stylized" is indicated, basic physical plausibility still \
+applies — gravity, fluid scatter, material properties, body mechanics — even though the art style \
+is non-photorealistic (anime, cartoon, watercolor, etc.).
 
 Do NOT include meta-commentary. Return ONLY the enhanced prompt text.\
 """

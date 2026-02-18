@@ -35,7 +35,11 @@ Visual analysis from reference images:
 {ref_analysis}
 """
 
+    realism_mode = analysis.get("realism_mode", "realistic")
+
     user_msg = f"""Original prompt: {prompt}
+
+Realism mode: {realism_mode}
 
 Prompt analysis:
 - Style: {analysis.get('style', 'not specified')}
