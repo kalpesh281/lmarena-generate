@@ -33,6 +33,41 @@ def generate_openai_image(
     return base64.b64decode(b64_data)
 
 
+def generate_openai_image_with_refs(
+    prompt: str,
+    reference_images: list[dict],
+    *,
+    size: str = "1024x1024",
+    quality: str = "high",
+) -> bytes:
+    """Generate an image using OpenAI images.edit with reference images.
+
+    Uses the edit endpoint which supports up to 16 input images for
+    visual conditioning alongside the text prompt.
+    """
+    import io
+    settings = get_settings()
+    client = _client()
+
+    # Convert base64 reference images to file-like objects
+    image_files = []
+    for ref in reference_images:
+        img_bytes = base64.b64decode(ref["image_b64"])
+        buf = io.BytesIO(img_bytes)
+        buf.name = "reference.png"
+        image_files.append(buf)
+
+    # Use first image as the primary, pass rest as additional
+    resp = client.images.edit(
+        model=settings.image_model,
+        image=image_files[0],
+        prompt=f"Using the reference image(s) for visual accuracy: {prompt}",
+        size=size,
+    )
+    b64_data = resp.data[0].b64_json
+    return base64.b64decode(b64_data)
+
+
 def edit_openai_image(
     prompt: str,
     image_path: str,

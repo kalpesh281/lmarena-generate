@@ -10,6 +10,7 @@ from langchain_core.messages import HumanMessage, SystemMessage
 from image_agent.config import get_settings
 from image_agent.prompts.templates import SUGGEST_SYSTEM_PROMPT
 from image_agent.state import ImageAgentState
+from image_agent.utils.logger import log_pipeline_step
 
 
 def suggest_node(state: ImageAgentState) -> dict:
@@ -25,6 +26,15 @@ def suggest_node(state: ImageAgentState) -> dict:
     analysis = state.get("prompt_analysis", {})
     research = state.get("research_context", {})
 
+    # Include visual analysis if available
+    visual_block = ""
+    ref_analysis = state.get("reference_image_analysis")
+    if ref_analysis:
+        visual_block = f"""
+Visual analysis from reference images:
+{ref_analysis}
+"""
+
     user_msg = f"""Original prompt: {prompt}
 
 Prompt analysis:
@@ -35,7 +45,7 @@ Prompt analysis:
 
 Research context:
 {research.get('synthesized', 'No research available')}
-
+{visual_block}
 Generate 3 distinct creative directions for this image."""
 
     response = llm.invoke([
@@ -61,4 +71,6 @@ Generate 3 distinct creative directions for this image."""
             }
         ]
 
+    titles = [f"{i+1}: {s.get('title', '?')}" for i, s in enumerate(suggestions[:3])]
+    log_pipeline_step("Suggest", "  ".join(titles))
     return {"suggestions": suggestions}

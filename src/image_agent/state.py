@@ -31,10 +31,15 @@ class ImageAgentState(TypedDict, total=False):
 
     # Router output
     action: Literal["generate", "edit", "enhance_only"]
-    prompt_analysis: dict[str, Any]  # {style, mood, subject, complexity}
+    prompt_analysis: dict[str, Any]  # {style, mood, subject, subject_type, complexity}
 
     # Research output
     research_context: dict[str, Any]  # {synthesized, style_refs, factual_context, trending_techniques}
+    reference_image_urls: list[str] | None  # URLs extracted from Tavily image results
+
+    # Reference image analysis output
+    reference_images: list[dict] | None  # Downloaded images: [{url, image_b64, mime_type}]
+    reference_image_analysis: str | None  # GPT-4o vision description of reference images
 
     # Enhancement output
     enhanced_prompt: str | None

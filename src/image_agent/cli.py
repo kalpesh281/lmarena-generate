@@ -206,6 +206,9 @@ def chat():
                 "research_context": last_phase1_result.get("research_context"),
                 "prompt_analysis": last_phase1_result.get("prompt_analysis"),
                 "action": last_phase1_result.get("action"),
+                # Carry reference image data from Phase 1
+                "reference_images": last_phase1_result.get("reference_images"),
+                "reference_image_analysis": last_phase1_result.get("reference_image_analysis"),
                 "enhanced_prompt": None,
                 "error": None,
                 "image_path": None,
@@ -296,6 +299,9 @@ def chat():
             "research_context": result.get("research_context"),
             "prompt_analysis": result.get("prompt_analysis"),
             "action": result.get("action"),
+            # Carry reference image data from Phase 1
+            "reference_images": result.get("reference_images"),
+            "reference_image_analysis": result.get("reference_image_analysis"),
             # Reset output fields
             "enhanced_prompt": None,
             "error": None,

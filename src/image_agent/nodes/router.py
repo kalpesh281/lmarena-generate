@@ -10,6 +10,7 @@ from langchain_core.messages import HumanMessage, SystemMessage
 from image_agent.config import get_settings
 from image_agent.prompts.templates import ROUTER_SYSTEM_PROMPT
 from image_agent.state import ImageAgentState
+from image_agent.utils.logger import log_pipeline_step
 
 
 def router_node(state: ImageAgentState) -> dict:
@@ -66,4 +67,10 @@ def router_node(state: ImageAgentState) -> dict:
     if action == "edit" and last_image and not state.get("source_image_path"):
         result["source_image_path"] = last_image
 
+    log_pipeline_step(
+        "Router",
+        f'action={action}  subject="{analysis.get("subject", "")}"'
+        f'  type={analysis.get("subject_type", "unknown")}  style={analysis.get("style", "")}'
+        f'  mood={analysis.get("mood", "")}',
+    )
     return result

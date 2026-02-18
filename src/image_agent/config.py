@@ -36,7 +36,16 @@ class Settings(BaseSettings):
     output_dir: Path = Path("output")
 
     # Research settings
-    tavily_max_results: int = 3
+    tavily_max_results: int = 5
+
+    # Pipeline logging
+    pipeline_logging: bool = True
+
+    # Reference image settings
+    ref_images_enabled: bool = True
+    ref_images_max_download: int = 5
+    ref_images_max_pass_to_model: int = 3
+    ref_image_analysis_model: str = "gpt-4o-mini"
 
 
 @lru_cache

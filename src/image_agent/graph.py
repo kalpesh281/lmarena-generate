@@ -8,6 +8,7 @@ from langgraph.checkpoint.memory import MemorySaver
 from image_agent.state import ImageAgentState
 from image_agent.nodes.router import router_node
 from image_agent.nodes.research import research_node
+from image_agent.nodes.ref_images import ref_images_node
 from image_agent.nodes.enhance import enhance_node
 from image_agent.nodes.suggest import suggest_node
 from image_agent.nodes.provider import provider_select_node
@@ -34,8 +35,8 @@ def _route_after_router(state: ImageAgentState) -> str:
     return "research"
 
 
-def _route_after_research(state: ImageAgentState) -> str:
-    """After research, decide whether to suggest or skip to enhance."""
+def _route_after_ref_images(state: ImageAgentState) -> str:
+    """After ref images, decide whether to suggest or skip to enhance."""
     if state.get("skip_suggestions") or state.get("action") == "enhance_only":
         return "enhance"
     return "suggest"
@@ -65,6 +66,7 @@ def build_graph() -> StateGraph:
     # Add all nodes
     graph.add_node("router", router_node)
     graph.add_node("research", research_node)
+    graph.add_node("ref_images", ref_images_node)
     graph.add_node("suggest", suggest_node)
     graph.add_node("enhance", enhance_node)
     graph.add_node("provider_select", provider_select_node)
@@ -87,8 +89,11 @@ def build_graph() -> StateGraph:
         "edit": "edit",
     })
 
-    # Research → conditional: suggest or skip to enhance
-    graph.add_conditional_edges("research", _route_after_research, {
+    # Research → ref_images (always)
+    graph.add_edge("research", "ref_images")
+
+    # Ref images → conditional: suggest or skip to enhance
+    graph.add_conditional_edges("ref_images", _route_after_ref_images, {
         "suggest": "suggest",
         "enhance": "enhance",
     })
