@@ -38,16 +38,18 @@ def save_node(state: ImageAgentState) -> dict:
         if ref.get("url"):
             ref_urls.append(ref["url"])
 
+    analysis = state.get("prompt_analysis") or {}
     sidecar = {
         "image_id": image_id,
         "timestamp": timestamp,
         "original_prompt": state.get("original_prompt", ""),
         "enhanced_prompt": state.get("enhanced_prompt"),
         "action": state.get("action"),
+        "orientation": analysis.get("orientation"),
         "provider": metadata.get("provider"),
         "model": metadata.get("model"),
         "params": metadata.get("params"),
-        "prompt_analysis": state.get("prompt_analysis"),
+        "prompt_analysis": analysis,
         "research_context": state.get("research_context"),
         "reference_image_urls": ref_urls if ref_urls else None,
         "reference_image_analysis": state.get("reference_image_analysis"),

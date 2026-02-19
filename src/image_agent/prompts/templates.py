@@ -11,8 +11,17 @@ Return a JSON object with exactly these fields:
   "subject": "<primary subject of the image>",
   "subject_type": "real_person" | "fictional_character" | "scene" | "object" | "abstract" | "educational" | "cultural" | "landmark",
   "complexity": "simple" | "moderate" | "complex",
-  "realism_mode": "realistic" | "fantasy" | "stylized"
+  "realism_mode": "realistic" | "fantasy" | "stylized",
+  "orientation": "square" | "landscape" | "portrait"
 }
+
+Orientation detection:
+- "landscape" — scenes with wide vistas, panoramas, skylines, group shots, banners, headers, \
+environments, cityscapes, battlefields, wide establishing shots
+- "portrait" — single person/character focus, full-body portraits, tall structures, vertical \
+compositions, stories/reels content, pins
+- "square" (DEFAULT) — balanced compositions, product shots, icons, logos, headshots, most \
+general-purpose images. When in doubt, default to "square"
 
 Supported styles:
 - General: photorealistic, anime, oil-painting, digital-art, watercolor, cartoon, 3d-render, pencil-sketch

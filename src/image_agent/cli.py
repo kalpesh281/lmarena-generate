@@ -35,6 +35,8 @@ def generate(
     initial_state = {"original_prompt": prompt, "skip_suggestions": True}
     if provider:
         initial_state["provider"] = provider
+    if size != "1024x1024":
+        initial_state["generation_params"] = {"size": size}
     config = {"configurable": {"thread_id": str(uuid.uuid4())}}
 
     with console.status("[bold green]Working..."):
@@ -61,6 +63,8 @@ def edit(
         "original_prompt": prompt,
         "source_image_path": image,
     }
+    if size != "1024x1024":
+        initial_state["generation_params"] = {"size": size}
     config = {"configurable": {"thread_id": str(uuid.uuid4())}}
 
     with console.status("[bold green]Editing..."):
