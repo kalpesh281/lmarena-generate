@@ -5,7 +5,9 @@ from __future__ import annotations
 import base64
 import io
 import logging
+import re
 from concurrent.futures import ThreadPoolExecutor, as_completed
+from urllib.parse import urlparse
 
 from PIL import Image
 from openai import OpenAI
@@ -17,6 +19,42 @@ from image_agent.state import ImageAgentState
 from image_agent.utils.logger import log_pipeline_step
 
 logger = logging.getLogger(__name__)
+
+# Patterns that indicate a low-quality or irrelevant image URL.
+_BAD_URL_PATTERNS = [
+    # YouTube thumbnails
+    re.compile(r"/hqdefault\.jpg", re.IGNORECASE),
+    re.compile(r"/maxresdefault\.jpg", re.IGNORECASE),
+    re.compile(r"/sddefault\.jpg", re.IGNORECASE),
+    re.compile(r"/mqdefault\.jpg", re.IGNORECASE),
+    re.compile(r"i\.ytimg\.com", re.IGNORECASE),
+    # Avatars, favicons, logos, icons, banners
+    re.compile(r"/(avatar|favicon|logo|icon|banner)[s_\-./]", re.IGNORECASE),
+    # Tiny wiki thumbnails (e.g. /thumb/...120px-Something.png)
+    re.compile(r"/thumb/.+\d{1,3}px", re.IGNORECASE),
+    # SVG and GIF files (not useful as generation references)
+    re.compile(r"\.svg(\?|$)", re.IGNORECASE),
+    re.compile(r"\.gif(\?|$)", re.IGNORECASE),
+    # Ad images, spinners, placeholders
+    re.compile(r"/(ads?|spinner|placeholder|loading|spacer)[_\-./]", re.IGNORECASE),
+]
+
+
+def _is_quality_url(url: str) -> bool:
+    """Return True if the URL is likely to be a useful reference image."""
+    # Reject URLs matching known bad patterns
+    for pattern in _BAD_URL_PATTERNS:
+        if pattern.search(url):
+            return False
+
+    # Reject URLs with very short paths (generic / stub images)
+    parsed = urlparse(url)
+    # Strip leading slash and query; path like "/" or "/image" is too short
+    path = parsed.path.strip("/")
+    if len(path) < 8:
+        return False
+
+    return True
 
 
 def _download_and_validate(url: str, max_size: tuple[int, int] = (1024, 1024)) -> dict | None:
@@ -116,9 +154,15 @@ def ref_images_node(state: ImageAgentState) -> dict:
     analysis = state.get("prompt_analysis", {})
     subject = analysis.get("subject", state.get("original_prompt", ""))
 
+    # Filter out low-quality URLs before downloading
+    quality_urls = [u for u in urls if _is_quality_url(u)]
+    filtered_out = len(urls) - len(quality_urls)
+    if filtered_out:
+        logger.info("Filtered out %d low-quality reference image URLs", filtered_out)
+
     # Download top N images in parallel
     max_download = settings.ref_images_max_download
-    urls_to_download = urls[:max_download]
+    urls_to_download = quality_urls[:max_download]
     downloaded: list[dict] = []
 
     with ThreadPoolExecutor(max_workers=max_download) as executor:
@@ -157,6 +201,7 @@ def ref_images_node(state: ImageAgentState) -> dict:
     log_pipeline_step(
         "Ref Images",
         f"downloaded={len(downloaded)}  analyzed={len(images_for_model)}"
+        f"  filtered_out={filtered_out}"
         f'  "{(analysis_text or "")[:50]}..."',
     )
     return {
